@@ -3,6 +3,7 @@ const int WIN_HEIGHT = 720;
 const int GAP_HEIGHT = 180;
 const int PIPE_WIDTH = 80;
 const int SCROLL_SPEED = 5;
+const int JUMP_HEIGHT = 20;
 
 const string SCORE_TEMPLATE = "Score: <b>%u</b>";
 
@@ -18,6 +19,8 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     private Gtk.Label score_widget;                             // The label displaying the score
     private int pipes_count;                                    // The number of pipes currently rendered
     private GameState state;                                    // The current game state
+    private float vertical_speed = 0;                           // The current vertical movement speed of the player
+    private float jump_height = 0;                              // The number of pixels remaining from the jump, until we start falling again
 
     public GameArea () {
         birdie = new Gtk.Arrow (Gtk.ArrowType.RIGHT,            // Create the player, a right-pointing arrow
@@ -36,6 +39,10 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
                 state = GameState.PLAYING;                      // set the game state to playing
                 add_tick_callback (game_screen_update);         // add a tick callback to start the animation
             }
+            if (state == GameState.PLAYING) {                   // if the game is started
+                vertical_speed = -JUMP_HEIGHT/3;                // initialize the speed to a negative value to move upwards
+                jump_height = JUMP_HEIGHT;                      // set the jump_height to the number of pixels we have to move upwards
+            }
         }
         return false;
     }
@@ -45,18 +52,28 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         Gtk.Adjustment adjustment = scrollable.get_hadjustment (); // to get the scrollbar
         adjustment.value += SCROLL_SPEED;                       // and scroll it with SCROLL_SPEED
 
+        if (jump_height <= 0) {                                 // in case we have reached the highest point of our jump
+            vertical_speed += (float)SCROLL_SPEED / 10;         // start falling, aka increasing the vertical speed
+        } else {                                                // otherwise we are still ascending
+            vertical_speed -= (float)SCROLL_SPEED / 10;         // so decrease the vertical speed, as gravity is slowing our jump down
+            jump_height = int.max((int)(jump_height + vertical_speed), 0); // updathe the number of pixels remaining from the current jump
+        }
+
         int child_x, child_y;
         move_child (score_widget, SCROLL_SPEED, 0,
                     out child_x, out child_y, true);            // move the score label, as we want that to "stay" in place
-        move_child (birdie, SCROLL_SPEED, 0,
-                    out child_x, out child_y, false);           // move the bird too, as that should be moving
+        move_child (birdie, SCROLL_SPEED, (int)vertical_speed,
+                    out child_x, out child_y, false);           // move the bird too, both vertically and horizontally
+
+        birdie.arrow_type = vertical_speed < 0 ? Gtk.ArrowType.UP // in case we are jumping, use the up arrow
+                                               : Gtk.ArrowType.RIGHT; // otherwise use the right arrow to show the direction of the movement
 
         if (adjustment.value >= adjustment.upper - adjustment.page_size) { // in case we are on the last page, meaning no way to scroll further
             width += 3*PIPE_WIDTH;                              // increase the width of the game area
             add_pipe ();                                        // add another pipe
         }
 
-        return adjustment.value < adjustment.upper - adjustment.page_size; // quit in case we have reached the end of the scrollbar
+        return child_y < height - 32;                           // quit in case we fell down
     }
 
     private void move_child (Gtk.Widget child, int dx, int dy,  // the child to move, the deltas to move
@@ -78,6 +95,10 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     private void setup_new_game () {
         set_size (2 * WIN_WIDTH,                                // Set the size to twice the width of the window for horizontal scrolling
                   WIN_HEIGHT - 13 );                            // and a height to fit in the window without adding a vertical scrollbar
+
+        vertical_speed = 0;                                     // Reinitialize game variables
+        state = GameState.INIT;
+        jump_height = 0;
 
         score_widget.set_markup (SCORE_TEMPLATE.printf (0));    // Initialize with 0 score
 
