@@ -21,6 +21,8 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     private GameState state;                                    // The current game state
     private float vertical_speed = 0;                           // The current vertical movement speed of the player
     private float jump_height = 0;                              // The number of pixels remaining from the jump, until we start falling again
+    private List<Gdk.Rectangle?> pipes = new List<Gdk.Rectangle?>(); // the rectangles of the pipes ahead of the player for collision detection
+    private int score = 0;                                      // the game score
 
     public GameArea () {
         birdie = new Gtk.Arrow (Gtk.ArrowType.RIGHT,            // Create the player, a right-pointing arrow
@@ -45,6 +47,28 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
             }
         }
         return false;
+    }s
+
+    private bool is_player_hit (int child_x, int child_y) {
+        if (child_y > height - 32) {                            // if we fell to the floor
+            return true;                                        // report collistion
+        }
+
+        unowned List<Gdk.Rectangle?> first = pipes.first();
+        if (first != null &&
+            first.data.x + first.data.width < child_x) {        // left the first pipe behind
+            pipes.remove_link(first);                           // we don't need this rectangle anymore
+            pipes.remove_link(pipes.first());                   // neither the next one, which is the bottom pair for the previous
+            score_widget.set_markup(SCORE_TEMPLATE.printf(++score)); // update the score
+        } else if (first != null) {                             // if we haven't left this pipe behind yes
+            Gdk.Rectangle birdie = get_rectangle(child_x, child_y, 32, 32); // get the bounding rectangle of the player
+            if (first.data.intersect (birdie, null)             // check for bounding box collision with the top
+                || first.next.data.intersect (birdie, null)) {  // and the bottom pipe
+                return true;                                    // if they intersect, we have a collision
+            }
+        }
+        return false;                                           // no collision
+
     }
 
     private bool game_screen_update (Gtk.Widget w, Gdk.FrameClock fc) {
@@ -65,6 +89,11 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         move_child (birdie, SCROLL_SPEED, (int)vertical_speed,
                     out child_x, out child_y, false);           // move the bird too, both vertically and horizontally
 
+        if (is_player_hit (child_x, child_y)) {
+            state = GameState.GAME_OVER;                        // update the game state
+            return false;                                       // false true to remove the tick callback
+        }
+
         birdie.arrow_type = vertical_speed < 0 ? Gtk.ArrowType.UP // in case we are jumping, use the up arrow
                                                : Gtk.ArrowType.RIGHT; // otherwise use the right arrow to show the direction of the movement
 
@@ -73,7 +102,7 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
             add_pipe ();                                        // add another pipe
         }
 
-        return child_y < height - 32;                           // quit in case we fell down
+        return true;
     }
 
     private void move_child (Gtk.Widget child, int dx, int dy,  // the child to move, the deltas to move
@@ -127,11 +156,28 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
                                 (int)height - position - GAP_HEIGHT); // going down to the bottom
         put (bottom, (pipes_count+2)*PIPE_WIDTH*3,
                      position+GAP_HEIGHT);
+        pipes.append (                                          // add the bounding box for the top pipe
+            get_rectangle (
+                (pipes_count+2)*PIPE_WIDTH*3, 0,
+                PIPE_WIDTH, position));
+        pipes.append (                                          // add the bounding box for the bottom pipe
+            get_rectangle (
+                (pipes_count+2)*PIPE_WIDTH*3, position + GAP_HEIGHT,
+                PIPE_WIDTH, (int)height -position -GAP_HEIGHT));
         top.set_sensitive (false);                              // we don't want fancy 3d buttons with hover style
         bottom.set_sensitive (false);                           // so set them to insensitive
         top.show ();                                            // and remember to display these
         bottom.show ();
         pipes_count ++;                                         // increase the number of rendered pipes
+    }
+
+    private Gdk.Rectangle get_rectangle (int x, int y, int width, int height) { // build a bounding box with a given parameters
+        Gdk.Rectangle rect = new Gdk.Rectangle();
+        rect.x = x;
+        rect.y = y;
+        rect.width = width;
+        rect.height = height;
+        return rect;
     }
 
 }
