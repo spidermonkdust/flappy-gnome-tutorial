@@ -51,6 +51,11 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         move_child (birdie, SCROLL_SPEED, 0,
                     out child_x, out child_y, false);           // move the bird too, as that should be moving
 
+        if (adjustment.value >= adjustment.upper - adjustment.page_size) { // in case we are on the last page, meaning no way to scroll further
+            width += 3*PIPE_WIDTH;                              // increase the width of the game area
+            add_pipe ();                                        // add another pipe
+        }
+
         return adjustment.value < adjustment.upper - adjustment.page_size; // quit in case we have reached the end of the scrollbar
     }
 
