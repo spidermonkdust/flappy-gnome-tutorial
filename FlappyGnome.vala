@@ -2,14 +2,22 @@ const int WIN_WIDTH = 1280;
 const int WIN_HEIGHT = 720;
 const int GAP_HEIGHT = 180;
 const int PIPE_WIDTH = 80;
+const int SCROLL_SPEED = 5;
 
 const string SCORE_TEMPLATE = "Score: <b>%u</b>";
+
+private enum GameState {
+    INIT,
+    PLAYING,
+    GAME_OVER;
+}
 
 private class GameArea : Gtk.Layout {                           // Our GameArea inherits from Gtk.Layout to support
                                                                 // adding child components, absolute positioning, scrolling
     private Gtk.Arrow birdie;                                   // The widget representing the player
     private Gtk.Label score_widget;                             // The label displaying the score
     private int pipes_count;                                    // The number of pipes currently rendered
+    private GameState state;                                    // The current game state
 
     public GameArea () {
         birdie = new Gtk.Arrow (Gtk.ArrowType.RIGHT,            // Create the player, a right-pointing arrow
@@ -18,6 +26,48 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
 
         score_widget = new Gtk.Label ("");                      // Create the label for displaying the score
         setup_new_game ();                                      // setup a new game
+        can_focus = true;                                       // set can_focus flag to be able to catch keyboard events
+        key_release_event.connect (on_key_released);            // handle key-release-event
+    }
+
+    private bool on_key_released (Gdk.EventKey event) {
+        if (event.keyval == Gdk.Key.space) {                    // In case the space key was released
+            if (state == GameState.INIT) {                      // If the game isn't started yet
+                state = GameState.PLAYING;                      // set the game state to playing
+                add_tick_callback (game_screen_update);         // add a tick callback to start the animation
+            }
+        }
+        return false;
+    }
+
+    private bool game_screen_update (Gtk.Widget w, Gdk.FrameClock fc) {
+        Gtk.Scrollable scrollable = (Gtk.Scrollable) this;      // we need the scrollable instance from the game area
+        Gtk.Adjustment adjustment = scrollable.get_hadjustment (); // to get the scrollbar
+        adjustment.value += SCROLL_SPEED;                       // and scroll it with SCROLL_SPEED
+
+        int child_x, child_y;
+        move_child (score_widget, SCROLL_SPEED, 0,
+                    out child_x, out child_y, true);            // move the score label, as we want that to "stay" in place
+        move_child (birdie, SCROLL_SPEED, 0,
+                    out child_x, out child_y, false);           // move the bird too, as that should be moving
+
+        return adjustment.value < adjustment.upper - adjustment.page_size; // quit in case we have reached the end of the scrollbar
+    }
+
+    private void move_child (Gtk.Widget child, int dx, int dy,  // the child to move, the deltas to move
+                             out int child_x, out int child_y,  // the position after the update
+                             bool place_over) {                 // if true, remove and readd, for z-ordering above all other components
+
+        child_get (child, "x", out child_x, "y", out child_y);  // get the current child position
+        child_x += dx;                                          // add the delta values to x position
+        child_y += dy;                                          // and the y position too
+        child_y = int.max (0, child_y);                         // do not allow leaving the gamefield on the top
+        if (place_over) {
+            remove (child);                                     // remove the child
+            put (child, child_x, child_y);                      // add it back to the new position
+        } else {
+            move (child, child_x, child_y);                     // move the child to the new position
+        }
     }
 
     private void setup_new_game () {
