@@ -23,6 +23,7 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     private float jump_height = 0;                              // The number of pixels remaining from the jump, until we start falling again
     private List<Gdk.Rectangle?> pipes = new List<Gdk.Rectangle?>(); // the rectangles of the pipes ahead of the player for collision detection
     private int score = 0;                                      // the game score
+    private uint animation_callback_id = 0;                     // the id of the animation callback
 
     public GameArea () {
         birdie = new Gtk.Arrow (Gtk.ArrowType.RIGHT,            // Create the player, a right-pointing arrow
@@ -39,15 +40,23 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         if (event.keyval == Gdk.Key.space) {                    // In case the space key was released
             if (state == GameState.INIT) {                      // If the game isn't started yet
                 state = GameState.PLAYING;                      // set the game state to playing
-                add_tick_callback (game_screen_update);         // add a tick callback to start the animation
+                animation_callback_id = add_tick_callback (game_screen_update); // add a tick callback to start the animation
             }
-            if (state == GameState.PLAYING) {                   // if the game is started
+
+            if (state == GameState.PLAYING) {
                 vertical_speed = -JUMP_HEIGHT/3;                // initialize the speed to a negative value to move upwards
                 jump_height = JUMP_HEIGHT;                      // set the jump_height to the number of pixels we have to move upwards
             }
+
+        }
+        if (event.keyval == Gdk.Key.F2) {                       // if the key is F2
+            if (animation_callback_id > 0) {                    // if the game is still running
+                remove_tick_callback (animation_callback_id);   // stop the game by removing the tick callback
+            }
+            setup_new_game ();                                  // start the game over
         }
         return false;
-    }s
+    }
 
     private bool is_player_hit (int child_x, int child_y) {
         if (child_y > height - 32) {                            // if we fell to the floor
@@ -91,6 +100,7 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
 
         if (is_player_hit (child_x, child_y)) {
             state = GameState.GAME_OVER;                        // update the game state
+            animation_callback_id = 0;                          // clear the stored animation callback id
             return false;                                       // false true to remove the tick callback
         }
 
@@ -128,10 +138,16 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         vertical_speed = 0;                                     // Reinitialize game variables
         state = GameState.INIT;
         jump_height = 0;
-
-        score_widget.set_markup (SCORE_TEMPLATE.printf (0));    // Initialize with 0 score
+        score = 0;
+        score_widget.set_markup (SCORE_TEMPLATE.printf (score));// Initialize with 0 score
 
         pipes_count = 0;                                        // reset the pipes count
+        ((Gtk.Scrollable)this).get_hadjustment().value = 0;     // reset the scroll
+
+        get_children().foreach((item) => {remove(item);});      // remove all pipes
+        pipes.foreach((item) => pipes.remove(item));            // remove all pipe bounding boxes
+
+        birdie.arrow_type = Gtk.ArrowType.RIGHT;                // reset the player
 
         put (birdie, PIPE_WIDTH * 2, WIN_HEIGHT / 3 * 2);       // Add the birdie at 2/3 of the height
 
