@@ -44,3 +44,14 @@ The steps of the tutorial should be easy to follow, each step being a single com
 ##6. New game support.
     
 * added F2 key to start a new game
+
+##7. Style the interface
+    
+* add CSS styling
+* style the pipes with a gradient
+* add a static floor, not scrolled
+* use different styles for top and bottom pipes
+* move the horizontal scrollbar above the game area
+* move the score widget from the game area to floor
+* use a signal to handle score updates
+
