@@ -4,6 +4,7 @@ const int GAP_HEIGHT = 180;
 const int PIPE_WIDTH = 80;
 const int SCROLL_SPEED = 5;
 const int JUMP_HEIGHT = 20;
+const int GROUND_HEIGHT = 100;
 
 const string SCORE_TEMPLATE = "Score: <b>%u</b>";
 
@@ -15,8 +16,9 @@ private enum GameState {
 
 private class GameArea : Gtk.Layout {                           // Our GameArea inherits from Gtk.Layout to support
                                                                 // adding child components, absolute positioning, scrolling
+    public signal void score_changed (int score);               // signal emitted at each score update, e.g. for updating a score widget
+
     private Gtk.Arrow birdie;                                   // The widget representing the player
-    private Gtk.Label score_widget;                             // The label displaying the score
     private int pipes_count;                                    // The number of pipes currently rendered
     private GameState state;                                    // The current game state
     private float vertical_speed = 0;                           // The current vertical movement speed of the player
@@ -30,8 +32,6 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
                                 Gtk.ShadowType.NONE);           // without any shadows
         birdie.set_size_request (32, 32);                       // and with an average, square size
 
-        score_widget = new Gtk.Label ("");                      // Create the label for displaying the score
-        setup_new_game ();                                      // setup a new game
         can_focus = true;                                       // set can_focus flag to be able to catch keyboard events
         key_release_event.connect (on_key_released);            // handle key-release-event
     }
@@ -68,7 +68,7 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
             first.data.x + first.data.width < child_x) {        // left the first pipe behind
             pipes.remove_link(first);                           // we don't need this rectangle anymore
             pipes.remove_link(pipes.first());                   // neither the next one, which is the bottom pair for the previous
-            score_widget.set_markup(SCORE_TEMPLATE.printf(++score)); // update the score
+            score_changed(++score);                             // notify signal handlers of the score change
         } else if (first != null) {                             // if we haven't left this pipe behind yes
             Gdk.Rectangle birdie = get_rectangle(child_x, child_y, 32, 32); // get the bounding rectangle of the player
             if (first.data.intersect (birdie, null)             // check for bounding box collision with the top
@@ -93,8 +93,6 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         }
 
         int child_x, child_y;
-        move_child (score_widget, SCROLL_SPEED, 0,
-                    out child_x, out child_y, true);            // move the score label, as we want that to "stay" in place
         move_child (birdie, SCROLL_SPEED, (int)vertical_speed,
                     out child_x, out child_y, false);           // move the bird too, both vertically and horizontally
 
@@ -131,15 +129,15 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         }
     }
 
-    private void setup_new_game () {
+    public void setup_new_game () {
         set_size (2 * WIN_WIDTH,                                // Set the size to twice the width of the window for horizontal scrolling
-                  WIN_HEIGHT - 13 );                            // and a height to fit in the window without adding a vertical scrollbar
+                  WIN_HEIGHT - GROUND_HEIGHT );                 // and a height to fit in the window without adding a vertical scrollbar
 
         vertical_speed = 0;                                     // Reinitialize game variables
         state = GameState.INIT;
         jump_height = 0;
         score = 0;
-        score_widget.set_markup (SCORE_TEMPLATE.printf (score));// Initialize with 0 score
+        score_changed (0);                                      // Notify score widget of the score reset
 
         pipes_count = 0;                                        // reset the pipes count
         ((Gtk.Scrollable)this).get_hadjustment().value = 0;     // reset the scroll
@@ -156,7 +154,6 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         while (pipes_count < initial_count)
             add_pipe ();                                        // Add the initial pipes
 
-        put (score_widget, WIN_WIDTH - 100, 32);                // Add the score label at the top right corner
         show_all ();                                            // Show each child of the container
 
     }
@@ -165,9 +162,11 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         int position = Random.int_range (GAP_HEIGHT,            // randomize the position of the gap between the pipes
                                          (int)height - 2 * GAP_HEIGHT);
         var top = new Gtk.Button ();                            // The pipe coming from the top
+        top.get_style_context ().add_class ("top");             // Add top class for styling
         top.set_size_request (PIPE_WIDTH, position);            // has a standard width going all the way down until the generated position
         put (top, (pipes_count+2)*PIPE_WIDTH*3, 0);             // we need some empty space for warmup, so we leave 2 pipes' space empty
         var bottom = new Gtk.Button ();
+        bottom.get_style_context ().add_class ("bottom");       // Add bottom class for styling
         bottom.set_size_request (PIPE_WIDTH,                    // the pipe from the bottom with standard width
                                 (int)height - position - GAP_HEIGHT); // going down to the bottom
         put (bottom, (pipes_count+2)*PIPE_WIDTH*3,
@@ -202,6 +201,19 @@ int main (string[] args) {
 
     Gtk.init (ref args);
 
+    var css_provider = new Gtk.CssProvider ();                  // Initialize a CSS provider
+    try {
+        css_provider.load_from_path ("flappy.css");             // from the flappy.css file in the current directory
+    } catch (GLib.Error e) {
+        warning ("Error loading css styles from %s: %s",        // warn in case of an error
+                    "flappy.css", e.message);
+    }
+
+    Gtk.StyleContext.add_provider_for_screen (                  // use the css provider
+        Gdk.Screen.get_default (),                              // on the default screen
+        css_provider,
+        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+
     var window = new Gtk.Window ();                             // Set up a window
     window.window_position = Gtk.WindowPosition.CENTER;         // centered on the screen
     window.title = "FlappyGnome";                               // proudly displaying the application name in the titlebar
@@ -209,12 +221,33 @@ int main (string[] args) {
     window.resizable = false;                                   // as we don't want to deal with dynamic resizing for now
     window.destroy.connect (Gtk.main_quit);                     // and quit the application when this window is closed
 
+    var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);        // add a box representing the content area
+
     var scrolled_window = new Gtk.ScrolledWindow (null, null);  // Add a scrollable area
-    window.add (scrolled_window);                               // to the main window
+    scrolled_window.set_policy (Gtk.PolicyType.ALWAYS,          // always show the horizontal scrollbar
+                                Gtk.PolicyType.NEVER);          // but never show the vertical one
+    scrolled_window.expand = true;                              // use all available space for this component
+    scrolled_window.set_placement (Gtk.CornerType.BOTTOM_LEFT); // move the scrollable content below the horizontal scrollbar
+
+    var ground = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);   // static component without scrolling
+    ground.set_size_request (WIN_WIDTH, GROUND_HEIGHT);         // with a fixed size
+    ground.get_style_context ().add_class ("ground");           // used as the floor
+
+    var score_label = new Gtk.Label ("");                       // create a score widget
+    ground.pack_end (score_label, false, false, 0);             // pack it in the bottom right corner
+    score_label.margin = 20;                                    // add a margin to avoid the score label expanding to the window border
+    box.add (scrolled_window);                                  // add the scrolled area to the content area
+    box.add (ground);                                           // add the floor to the content area
+    window.add (box);                                           // and add the content container to the main window
 
     var game_area = new GameArea ();                            // Add the game area
     scrolled_window.add (game_area);                            // to the scrollable to support scrolling, as we are doing a side-scroller
 
+    game_area.score_changed.connect ( (score) => {              // connect to the score changed signal
+        score_label.set_markup (SCORE_TEMPLATE.printf (score)); // and update the score label on each change
+    });
+
+    game_area.setup_new_game ();                                // setup a new game
     window.show_all ();                                         // Show the window and each component withing
 
     Gtk.main ();                                                // Start the application

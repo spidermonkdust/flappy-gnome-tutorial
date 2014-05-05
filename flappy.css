@@ -1,0 +1,46 @@
+GtkLayout {
+  background-color: #ADD5F7;
+}
+
+.button {
+  background-image: none;
+  background-image: -gtk-gradient (linear,
+               0 0, 1 0,
+	       color-stop(0, #98DB05),
+               color-stop(0.35, #84BF04),
+               color-stop(0.7, #84BF04),
+               color-stop(1, #19A603));
+  border: 3px solid #827772;
+}
+
+.top {
+  border-top: none;
+  border-radius:0 0 12px 12px;
+}
+
+.bottom {
+  border-bottom: none;
+  border-radius:12px 12px 0 0;
+}
+
+GtkLabel {
+  padding:10px;
+  background-color:alpha(black, 0.5);
+  border-radius:6px;
+  color: #EFC94C;
+  font-size: 16px;
+}
+
+GtkArrow {
+  color: black;
+}
+
+GtkScrollbar {
+  background-color:transparent;
+}
+
+.ground {
+  background-color: #CBAF8D;
+  border: none;
+  border-top: 3px solid #685B54;
+}
