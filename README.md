@@ -1,17 +1,27 @@
 flappy-gnome-tutorial
 =====================
 
-Flappy GNOME is a side-scrolling game development tutorial using GTK+ 3.8+, written in Vala.
+Flappy GNOME is a side-scrolling game development tutorial using Vala and GTK+ 3.8+.
 
 The final result of the tutorial is a Flappy Bird style minigame.
 ![ScreenShot](/screenshot.png)
 The steps of the tutorial should be easy to follow, each step being a single commit, with a minimal required diff. 
 Additionally, the code is fairly well-commented, short, and organized, so it should be easy to read.
+I am aware of the fact that GTK+ is not a game development framework, is not designed with this purpose in mind, however for simple games the support it provides should be enough.
+
+# Known issues
+
+I have tested this on several configurations:
+* Laptop1: Intel Core 2 Duo P8700 2.53 Ghz laptop with Radeon HD 4330 on Arch Linux (open-source radeon driver)
+* PC1: Intel Core 2 Quad Q8300 with Intel HD graphics on Ubuntu 14.04 (open-source Intel driver)
+* PC2: AMD A6-3650 x4 APU with Radeon HD 6530D on Fedora 20 + Gtk 3.12 (open-source radeon driver)
+
+All these configurations can run the game, however the game runs best on the Intel HD, on the Ati cards the game runs slow, and by increasing the SCROLL_SPEED constant the game gets choppy. 
 
 # Running
 
 The packages required for building are:
-* gtk+-3.0
+* gtk+-3.0 (3.8+)
 * librsvg-2.0
 * valac (I am building with 0.24, might work on lower versions too)
 
