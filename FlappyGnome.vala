@@ -178,26 +178,28 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     }
 
     private void add_pipe () {
-        int position = Random.int_range (GAP_HEIGHT,            // randomize the position of the gap between the pipes
-                                         (int)height - 2 * GAP_HEIGHT);
+        int position = Random.int_range (GAP_HEIGHT/2,            // randomize the position of the gap between the pipes
+                                         (int)height - GAP_HEIGHT * 3 / 2);
+        int top_height = position;                              // the height of the pipe from the top
+        int bottom_height = (int)height - top_height - GAP_HEIGHT; // the height of the pipe from the bottom
         var top = new Gtk.Button ();                            // The pipe coming from the top
         top.get_style_context ().add_class ("top");             // Add top class for styling
-        top.set_size_request (PIPE_WIDTH, position);            // has a standard width going all the way down until the generated position
+        top.set_size_request (PIPE_WIDTH, top_height );         // has a standard width going all the way down until the generated position
         put (top, (pipes_count+2)*PIPE_WIDTH*3, 0);             // we need some empty space for warmup, so we leave 2 pipes' space empty
         var bottom = new Gtk.Button ();
         bottom.get_style_context ().add_class ("bottom");       // Add bottom class for styling
         bottom.set_size_request (PIPE_WIDTH,                    // the pipe from the bottom with standard width
-                                (int)height - position - GAP_HEIGHT); // going down to the bottom
+                                 bottom_height); // going down to the bottom
         put (bottom, (pipes_count+2)*PIPE_WIDTH*3,
                      position+GAP_HEIGHT);
         pipes.append (                                          // add the bounding box for the top pipe
             get_rectangle (
                 (pipes_count+2)*PIPE_WIDTH*3, 0,
-                PIPE_WIDTH, position));
+                PIPE_WIDTH, top_height));
         pipes.append (                                          // add the bounding box for the bottom pipe
             get_rectangle (
                 (pipes_count+2)*PIPE_WIDTH*3, position + GAP_HEIGHT,
-                PIPE_WIDTH, (int)height -position -GAP_HEIGHT));
+                PIPE_WIDTH, bottom_height));
         top.set_sensitive (false);                              // we don't want fancy 3d buttons with hover style
         bottom.set_sensitive (false);                           // so set them to insensitive
         top.show ();                                            // and remember to display these
