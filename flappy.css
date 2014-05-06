@@ -2,15 +2,29 @@ GtkLayout {
   background-color: #ADD5F7;
 }
 
-.button {
-  background-image: none;
+GameArea .button {
   background-image: -gtk-gradient (linear,
                0 0, 1 0,
-	       color-stop(0, #98DB05),
-               color-stop(0.35, #84BF04),
-               color-stop(0.7, #84BF04),
-               color-stop(1, #19A603));
+               color-stop(0, shade(#84BF04, 1.2)),
+               color-stop(0.5, #84BF04),
+               color-stop(0.55, #84BF04),
+               color-stop(1, shade(#84BF04, 0.8)));
   border: 3px solid #827772;
+}
+
+GtkBox .image-button {
+  background-image: none;
+  background-color: #84BF04;
+  border: 1px solid #827772;
+  border-radius: 12px;
+}
+
+GtkBox .image-button:hover {
+  background-color: shade (#84BF04, 1.1);
+}
+
+GtkBox .image-button:active {
+  background-color: shade (#84BF04, 1.2);
 }
 
 .top {

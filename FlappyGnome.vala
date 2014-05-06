@@ -18,7 +18,10 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
                                                                 // adding child components, absolute positioning, scrolling
     public signal void score_changed (int score);               // signal emitted at each score update, e.g. for updating a score widget
 
-    private Gtk.Arrow birdie;                                   // The widget representing the player
+    private Gdk.Pixbuf bird_up;
+    private Gdk.Pixbuf bird_down;
+
+    private Gtk.Image birdie;                                   // The widget representing the player
     private int pipes_count;                                    // The number of pipes currently rendered
     private GameState state;                                    // The current game state
     private float vertical_speed = 0;                           // The current vertical movement speed of the player
@@ -28,10 +31,21 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     private uint animation_callback_id = 0;                     // the id of the animation callback
 
     public GameArea () {
-        birdie = new Gtk.Arrow (Gtk.ArrowType.RIGHT,            // Create the player, a right-pointing arrow
-                                Gtk.ShadowType.NONE);           // without any shadows
-        birdie.set_size_request (32, 32);                       // and with an average, square size
-
+        birdie = new Gtk.Image ();                              // Create the image for the player
+        try {
+            bird_up = Rsvg.pixbuf_from_file ("heli-up.svg");    // load the ascending image
+            bird_down = Rsvg.pixbuf_from_file ("heli-down.svg");// load the descending image
+        } catch (Error e) {
+            warning ("Error loading image, using arrows: %s",   // warn in case of an error
+                     e.message);
+            Gtk.IconTheme icon_theme = Gtk.IconTheme.get_default (); // load the icon theme to load the fallback images
+            try {
+                bird_up = icon_theme.load_icon ("go-up", 48, 0); // load the up icon
+                bird_down = icon_theme.load_icon ("go-next", 48, 0); // load the forward icon
+            } catch (Error e) {
+                error ("No player image found");
+            }
+        }
         can_focus = true;                                       // set can_focus flag to be able to catch keyboard events
         key_release_event.connect (on_key_released);            // handle key-release-event
     }
@@ -50,16 +64,16 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
 
         }
         if (event.keyval == Gdk.Key.F2) {                       // if the key is F2
-            if (animation_callback_id > 0) {                    // if the game is still running
-                remove_tick_callback (animation_callback_id);   // stop the game by removing the tick callback
-            }
             setup_new_game ();                                  // start the game over
         }
         return false;
     }
 
     private bool is_player_hit (int child_x, int child_y) {
-        if (child_y > height - 32) {                            // if we fell to the floor
+        int w, h;
+        w = birdie.get_allocated_width ();
+        h = birdie.get_allocated_height ();
+        if (child_y > height - h) {                             // if we fell to the floor
             return true;                                        // report collistion
         }
 
@@ -70,7 +84,9 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
             pipes.remove_link(pipes.first());                   // neither the next one, which is the bottom pair for the previous
             score_changed(++score);                             // notify signal handlers of the score change
         } else if (first != null) {                             // if we haven't left this pipe behind yes
-            Gdk.Rectangle birdie = get_rectangle(child_x, child_y, 32, 32); // get the bounding rectangle of the player
+            Gdk.Rectangle birdie = get_rectangle(child_x + w - h, child_y,
+                h,
+                h);                                             // get the bounding rectangle of the player
             if (first.data.intersect (birdie, null)             // check for bounding box collision with the top
                 || first.next.data.intersect (birdie, null)) {  // and the bottom pipe
                 return true;                                    // if they intersect, we have a collision
@@ -102,8 +118,8 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
             return false;                                       // false true to remove the tick callback
         }
 
-        birdie.arrow_type = vertical_speed < 0 ? Gtk.ArrowType.UP // in case we are jumping, use the up arrow
-                                               : Gtk.ArrowType.RIGHT; // otherwise use the right arrow to show the direction of the movement
+        birdie.pixbuf = vertical_speed < 0 ? bird_up            // in case we are jumping, use the ascending image
+                                           : bird_down;         // otherwise use the descending image
 
         if (adjustment.value >= adjustment.upper - adjustment.page_size) { // in case we are on the last page, meaning no way to scroll further
             width += 3*PIPE_WIDTH;                              // increase the width of the game area
@@ -130,6 +146,9 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
     }
 
     public void setup_new_game () {
+        if (animation_callback_id > 0) {                        // if the game is already running
+                remove_tick_callback (animation_callback_id);   // stop the game by removing the tick callback
+        }
         set_size (2 * WIN_WIDTH,                                // Set the size to twice the width of the window for horizontal scrolling
                   WIN_HEIGHT - GROUND_HEIGHT );                 // and a height to fit in the window without adding a vertical scrollbar
 
@@ -145,7 +164,7 @@ private class GameArea : Gtk.Layout {                           // Our GameArea 
         get_children().foreach((item) => {remove(item);});      // remove all pipes
         pipes.foreach((item) => pipes.remove(item));            // remove all pipe bounding boxes
 
-        birdie.arrow_type = Gtk.ArrowType.RIGHT;                // reset the player
+        birdie.pixbuf = bird_down;                              // reset the player
 
         put (birdie, PIPE_WIDTH * 2, WIN_HEIGHT / 3 * 2);       // Add the birdie at 2/3 of the height
 
@@ -233,9 +252,18 @@ int main (string[] args) {
     ground.set_size_request (WIN_WIDTH, GROUND_HEIGHT);         // with a fixed size
     ground.get_style_context ().add_class ("ground");           // used as the floor
 
+    var restart_button = new Gtk.Button.from_icon_name (        // create a restart button
+                                "view-refresh-symbolic",        // with a refresh icon
+                                Gtk.IconSize.DND);              // with an image 32x32 px
+    restart_button.set_size_request (64, 64);
+    ground.pack_start (restart_button, false, false, 0);        // add the restart button to the bottom left corner
+    restart_button.margin = 20;                                 // add a margin to avoid the restart button expanding to the window border
+    restart_button.can_focus = false;                           // disable can_focus to avoid stealing space keypress after clicked
+
     var score_label = new Gtk.Label ("");                       // create a score widget
     ground.pack_end (score_label, false, false, 0);             // pack it in the bottom right corner
     score_label.margin = 20;                                    // add a margin to avoid the score label expanding to the window border
+
     box.add (scrolled_window);                                  // add the scrolled area to the content area
     box.add (ground);                                           // add the floor to the content area
     window.add (box);                                           // and add the content container to the main window
@@ -247,6 +275,9 @@ int main (string[] args) {
         score_label.set_markup (SCORE_TEMPLATE.printf (score)); // and update the score label on each change
     });
 
+    restart_button.clicked.connect ((event) => {                // connect to the restart button clicked signal
+        game_area.setup_new_game ();                            // to start a new game
+    });
     game_area.setup_new_game ();                                // setup a new game
     window.show_all ();                                         // Show the window and each component withing
 
